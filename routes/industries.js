@@ -30,6 +30,13 @@ router.get("/", async function(req, res, next) {
           industriesResult[indIdx]['company_codes'].push(row['company_code'])
         }
       }
+
+      for (let industryResult of industriesResult) {
+        if (industryResult.company_codes[0] === null) {
+          let indIdx = industriesResult.findIndex(key => key.code === `${industryResult.code}`)
+          industriesResult[indIdx]['company_codes'] = []
+        }
+      }
         
       return res.json({ industries: industriesResult});
     } catch(err){
