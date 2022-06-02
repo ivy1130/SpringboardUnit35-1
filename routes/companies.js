@@ -4,6 +4,7 @@ const express = require("express");
 const router = new express.Router();
 const db = require("../db")
 const ExpressError = require("../expressError")
+const slugify = require("slugify")
 
 /** GET / - returns `{companies: [company, ...]}` */
 
@@ -22,7 +23,13 @@ router.get("/", async function(req, res, next) {
   router.get("/:code", async function(req, res, next) {
     try {
       const companyQuery = await db.query(
-        "SELECT code, name, description FROM companies WHERE code = $1", [req.params.code])
+        `SELECT c.code, c.name, c.description, i.industry
+        FROM companies c
+        LEFT JOIN companies_industries ci
+        ON c.code=ci.company_code
+        LEFT JOIN industries i
+        on ci.industry_code=i.code
+        WHERE c.code = $1`, [req.params.code])
 
       const invoicesQuery = await db.query(
         `SELECT id FROM invoices WHERE comp_code = $1`,[req.params.code])
@@ -33,9 +40,12 @@ router.get("/", async function(req, res, next) {
         throw notFoundError
       }
 
-      const company = companyQuery.rows[0]
-      const invoices = invoicesQuery.rows
+      const {code, name, description} = companyQuery.rows[0]
+      const industries = companyQuery.rows.map(r => r.industry)
+      
+      const company = {code, name, description, industries}
 
+      const invoices = invoicesQuery.rows
       company.invoices = invoices.map(inv => inv.id)
 
       return res.json({ company: company })
@@ -51,9 +61,9 @@ router.get("/", async function(req, res, next) {
     try {
       const result = await db.query(
         `INSERT INTO companies (code, name, description) 
-           VALUES ($1, $2, $3) 
-           RETURNING code, name, description`,
-        [req.body.code, req.body.name, req.body.description])
+          VALUES ($1, $2, $3) 
+          RETURNING code, name, description`,
+        [slugify(req.body.name, {lower: true}), req.body.name, req.body.description])
   
       return res.status(201).json({company: result.rows[0]})  // 201 CREATED
     } catch (err) {
@@ -72,10 +82,10 @@ router.get("/", async function(req, res, next) {
   
       const result = await db.query(
         `UPDATE companies 
-             SET name=$1,
-                 description=$2
-             WHERE code = $3
-             RETURNING code, name, description`,
+          SET name=$1,
+              description=$2
+          WHERE code = $3
+          RETURNING code, name, description`,
         [req.body.name, req.body.description, req.params.code])
   
       if (result.rows.length === 0) {
