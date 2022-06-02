@@ -17,19 +17,28 @@ router.get("/", async function(req, res, next) {
   })
   
   
-  /** GET /[id] - return data about one company: `{company: company}` */
+  /** GET /[code] - return data about one company: `{company: company}` */
   
   router.get("/:code", async function(req, res, next) {
     try {
       const companyQuery = await db.query(
         "SELECT code, name, description FROM companies WHERE code = $1", [req.params.code])
+
+      const invoicesQuery = await db.query(
+        `SELECT id FROM invoices WHERE comp_code = $1`,[req.params.code])
   
       if (companyQuery.rows.length === 0) {
         let notFoundError = new Error(`There is no company with corresponding code '${req.params.code}`)
         notFoundError.status = 404
         throw notFoundError
       }
-      return res.json({ company: companyQuery.rows[0] })
+
+      const company = companyQuery.rows[0]
+      const invoices = invoicesQuery.rows
+
+      company.invoices = invoices.map(inv => inv.id)
+
+      return res.json({ company: company })
     } catch (err) {
       return next(err)
     }
@@ -53,7 +62,7 @@ router.get("/", async function(req, res, next) {
   })
   
   
-  /** PATCH /[id] - update fields in company; return `{company: company}` */
+  /** PUT /[code] - update fields in company; return `{company: company}` */
   
   router.put("/:code", async function(req, res, next) {
     try {
@@ -80,7 +89,7 @@ router.get("/", async function(req, res, next) {
   })
   
   
-  /** DELETE /[id] - delete company, return `{message: "Company deleted"}` */
+  /** DELETE /[code] - delete company, return `{message: "Company deleted"}` */
   
   router.delete("/:code", async function(req, res, next) {
     try {
